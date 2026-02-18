@@ -12,7 +12,8 @@
       "Bash(export PATH=\"$HOME/Library/Python/3.9/bin:$PATH\")",
       "Bash(skopos scan:*)",
       "Bash(demo_realtime.md:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(/Users/plkhadka/new/src/skopos/web/static/style.css:*)"
     ],
     "additionalDirectories": [
       "/tmp"
