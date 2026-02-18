@@ -43,6 +43,11 @@ yaml = ["pyyaml>=6.0"]
 web = [
   "flask>=2.3.0",
   "flask-cors>=4.0.0",
+  "flask-socketio>=5.3.0",
+]
+web = [
+  "flask>=2.3.0",
+  "flask-cors>=4.0.0",
 ]
 
 [project.urls]

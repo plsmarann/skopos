@@ -5,23 +5,33 @@ from __future__ import annotations
 import os
 import signal
 import sys
+import threading
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 try:
     from flask import Flask, jsonify, render_template, request
     from flask_cors import CORS
+    from flask_socketio import SocketIO, emit
 
     HAS_FLASK = True
+    HAS_SOCKETIO = True
 except ImportError:
     HAS_FLASK = False
+    HAS_SOCKETIO = False
 
 from ..detection import detect_agents
 from ..processes import list_processes
 
+# Global history storage (in-memory)
+_history: list[dict[str, Any]] = []
+_max_history = 100
 
-def create_app() -> Any:
-    """Create Flask application."""
+
+def create_app() -> tuple[Any, Any]:
+    """Create Flask application with SocketIO."""
     if not HAS_FLASK:
         raise RuntimeError(
             "Flask not installed. Install with: pip install skopos[web]"
@@ -33,10 +43,15 @@ def create_app() -> Any:
     app = Flask(
         __name__, template_folder=str(template_dir), static_folder=str(static_dir)
     )
+    app.config["SECRET_KEY"] = os.urandom(24).hex()
     CORS(app)
+
+    # Initialize SocketIO
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
     # Store allowlist in app config
     app.config["ALLOWLIST"] = []
+    app.config["CLIENTS"] = set()  # Track connected clients
 
     @app.route("/")
     def index() -> str:
@@ -199,7 +214,127 @@ def create_app() -> Any:
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 
-    return app
+    @app.route("/api/history")
+    def api_history() -> Any:
+        """Get historical data."""
+        try:
+            return jsonify({"success": True, "history": _history})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # WebSocket event handlers
+    @socketio.on("connect")
+    def handle_connect() -> None:
+        """Handle client connection."""
+        app.config["CLIENTS"].add(request.sid)
+        emit("status", {"message": "Connected to skopos server"})
+
+    @socketio.on("disconnect")
+    def handle_disconnect() -> None:
+        """Handle client disconnection."""
+        app.config["CLIENTS"].discard(request.sid)
+
+    @socketio.on("request_scan")
+    def handle_request_scan() -> None:
+        """Handle manual scan request."""
+        try:
+            processes = list_processes()
+            allowlist = app.config.get("ALLOWLIST", [])
+            findings = detect_agents(processes, allowlist_keywords=allowlist)
+            emit("scan_result", {"findings": [f.to_dict() for f in findings]})
+        except Exception as e:
+            emit("error", {"message": str(e)})
+
+    # Background scanner function
+    def background_scanner() -> None:
+        """Background thread to scan and emit updates via WebSocket."""
+        previous_pids: set[int] = set()
+
+        with app.app_context():
+            while True:
+                try:
+                    processes = list_processes()
+                    allowlist = app.config.get("ALLOWLIST", [])
+                    findings = detect_agents(processes, allowlist_keywords=allowlist)
+
+                    current_pids = {f.process.pid for f in findings}
+
+                    # Detect changes
+                    new_pids = current_pids - previous_pids
+                    removed_pids = previous_pids - current_pids
+
+                    # Store in history
+                    entry = {
+                        "timestamp": datetime.now().isoformat(),
+                        "total": len(findings),
+                        "high": sum(1 for f in findings if f.severity == "high"),
+                        "medium": sum(1 for f in findings if f.severity == "medium"),
+                        "low": sum(1 for f in findings if f.severity == "low"),
+                        "new_pids": list(new_pids),
+                        "removed_pids": list(removed_pids),
+                    }
+                    _history.append(entry)
+                    if len(_history) > _max_history:
+                        _history.pop(0)
+
+                    # Compute stats
+                    stats = {
+                        "total": entry["total"],
+                        "high": entry["high"],
+                        "medium": entry["medium"],
+                        "low": entry["low"],
+                    }
+
+                    agents: dict[str, int] = {}
+                    for f in findings:
+                        for kw in f.ai_agent_keywords + f.model_keywords:
+                            agents[kw] = agents.get(kw, 0) + 1
+
+                    # Emit to all connected clients
+                    if app.config["CLIENTS"]:
+                        socketio.emit(
+                            "update",
+                            {
+                                "findings": [f.to_dict() for f in findings],
+                                "stats": stats,
+                                "agents": dict(
+                                    sorted(agents.items(), key=lambda x: -x[1])[:10]
+                                ),
+                                "changes": {
+                                    "new": list(new_pids),
+                                    "removed": list(removed_pids),
+                                },
+                            },
+                        )
+
+                        # Alert on high severity
+                        high_severity = [f for f in findings if f.severity == "high"]
+                        if high_severity and new_pids:
+                            for f in high_severity:
+                                if f.process.pid in new_pids:
+                                    socketio.emit(
+                                        "alert",
+                                        {
+                                            "severity": "high",
+                                            "pid": f.process.pid,
+                                            "user": f.process.user,
+                                            "command": f.process.command,
+                                            "risk_score": f.risk_score,
+                                            "reasons": f.reasons,
+                                        },
+                                    )
+
+                    previous_pids = current_pids
+
+                except Exception as e:
+                    print(f"Background scanner error: {e}", file=sys.stderr)
+
+                time.sleep(3)  # Scan every 3 seconds
+
+    # Start background scanner
+    socketio.start_background_task(background_scanner)
+
+    return app, socketio
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8080, debug: bool = False) -> None:
@@ -209,13 +344,15 @@ def run_server(host: str = "127.0.0.1", port: int = 8080, debug: bool = False) -
         print("   Install with: pip install skopos[web]", file=sys.stderr)
         sys.exit(1)
 
-    app = create_app()
-    print(f"🛡️  Starting skopos web dashboard...")
+    app, socketio = create_app()
+
+    print(f"🛡️  Starting skopos web dashboard (Phase 2)...")
     print(f"   URL: http://{host}:{port}")
+    print(f"   ✨ Features: WebSocket live updates, Charts, Alerts")
     print(f"   Press Ctrl+C to stop")
     print()
 
     try:
-        app.run(host=host, port=port, debug=debug)
+        socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
     except KeyboardInterrupt:
         print("\n\n✅ Stopped web server")
