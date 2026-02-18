@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛡️ skopos - AI Agent Guardian</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🛡️ skopos</h1>
+            <p class="subtitle">AI Agent Guardian Dashboard</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Stats Overview -->
+        <section class="stats-grid">
+            <div class="stat-card high">
+                <div class="stat-value" id="stat-high">-</div>
+                <div class="stat-label">High Risk</div>
+            </div>
+            <div class="stat-card medium">
+                <div class="stat-value" id="stat-medium">-</div>
+                <div class="stat-label">Medium Risk</div>
+            </div>
+            <div class="stat-card low">
+                <div class="stat-value" id="stat-low">-</div>
+                <div class="stat-label">Low Risk</div>
+            </div>
+            <div class="stat-card total">
+                <div class="stat-value" id="stat-total">-</div>
+                <div class="stat-label">Total Detected</div>
+            </div>
+        </section>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <span class="status-indicator" id="status-indicator">●</span>
+            <span id="status-text">Connecting...</span>
+            <span class="refresh-timer">Refreshing in <span id="refresh-countdown">5</span>s</span>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+            <label>
+                <input type="checkbox" id="filter-high" checked> High Severity
+            </label>
+            <label>
+                <input type="checkbox" id="filter-medium" checked> Medium Severity
+            </label>
+            <label>
+                <input type="checkbox" id="filter-low" checked> Low Severity
+            </label>
+            <button class="btn-secondary" onclick="exportJSON()">Export JSON</button>
+        </div>
+
+        <!-- Process Table -->
+        <div class="table-container">
+            <table id="process-table">
+                <thead>
+                    <tr>
+                        <th>Severity</th>
+                        <th>Risk</th>
+                        <th>PID</th>
+                        <th>User</th>
+                        <th>Agents/Models</th>
+                        <th>Ports</th>
+                        <th>Command</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="process-tbody">
+                    <tr>
+                        <td colspan="8" class="loading">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Top Agents -->
+        <section class="agents-section">
+            <h2>Detected AI Agents</h2>
+            <div id="agents-list" class="agents-grid">
+                <div class="loading">Loading...</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Kill Confirmation Modal -->
+    <div id="kill-modal" class="modal">
+        <div class="modal-content">
+            <h2>⚠️ Confirm Process Termination</h2>
+            <p>Are you sure you want to kill this process?</p>
+            <div class="process-info">
+                <strong>PID:</strong> <span id="kill-pid"></span><br>
+                <strong>User:</strong> <span id="kill-user"></span><br>
+                <strong>Command:</strong> <code id="kill-command"></code>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-danger" onclick="confirmKill()">Kill Process</button>
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

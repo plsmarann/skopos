@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "skopos"
-version = "0.2.0"
+version = "0.3.0"
 description = "CLI scout/guardian for detecting AI agents and model runtimes on local devices"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -40,6 +40,10 @@ dev = [
   "mypy>=1.5",
 ]
 yaml = ["pyyaml>=6.0"]
+web = [
+  "flask>=2.3.0",
+  "flask-cors>=4.0.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/plsmarann/skopos"

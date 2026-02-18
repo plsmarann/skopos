@@ -137,6 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Keyword allowlist for known-safe agent names (repeatable).",
     )
+    parser.add_argument("--version", action="version", version="skopos 0.3.0")
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -159,6 +160,11 @@ def build_parser() -> argparse.ArgumentParser:
     watch = sub.add_parser("watch", help="Continuously monitor for AI/agent process changes")
     watch.add_argument("--interval", type=int, default=10, help="Polling interval in seconds")
 
+    web = sub.add_parser("web", help="Start web dashboard with live updates")
+    web.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
+    web.add_argument("--port", type=int, default=8080, help="Port to bind to (default: 8080)")
+    web.add_argument("--debug", action="store_true", help="Enable Flask debug mode")
+
     return parser
 
 
@@ -174,6 +180,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         return _protect(args.allow, args.min_severity, args.json)
     if args.command == "watch":
         return _watch(args.allow, args.interval)
+    if args.command == "web":
+        from .web import run_server
+
+        run_server(host=args.host, port=args.port, debug=args.debug)
+        return 0
 
     parser.print_help()
     return 2

@@ -3,7 +3,18 @@
     "allow": [
       "Bash(chmod:*)",
       "Bash(PYTHONPATH=src python3:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(python3 -m pip:*)",
+      "Bash(python3:*)",
+      "Bash(~/.zshrc)",
+      "Bash(export PATH=\"$HOME/Library/Python/3.9/bin:$PATH\")",
+      "Bash(skopos scan:*)",
+      "Bash(demo_realtime.md:*)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }
