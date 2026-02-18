@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(PYTHONPATH=src python3:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
